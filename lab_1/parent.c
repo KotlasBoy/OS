@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -87,7 +88,16 @@ int main(int argc, char *argv[]) {
 
     if (pid == 0) { // Дочерний процесс
         close(pipe1[1]); // Закрываем запись в pipe1
+        dup2(pipe1[0], STDIN_FILENO); // Перенаправляем stdin на pipe1[0]
+        close(pipe1[0]);
 
+        char *args[] = {"./child", argv[1], NULL};
+        execv(args[0], args);
+
+        // Если execv не выполнился
+        perror("Ошибка при execv");
+        exit(EXIT_FAILURE);
+/*         
         char buffer[BUFFER_SIZE];
         while (1) {
             ssize_t bytesRead = read(pipe1[0], buffer, BUFFER_SIZE);
@@ -114,7 +124,7 @@ int main(int argc, char *argv[]) {
             strcat(result, "\n"); // Добавляем новую строку
 
             write_to_file(argv[1], result, strlen(result)); // Записываем результат в файл
-        }
+        } */
 
         close(pipe1[0]);
         exit(EXIT_SUCCESS);
@@ -145,4 +155,7 @@ int main(int argc, char *argv[]) {
         wait(NULL); // Ожидаем завершения дочернего процесса
         exit(EXIT_SUCCESS);
     }
+
 }
+
+//TODO: С-ВО execl функций

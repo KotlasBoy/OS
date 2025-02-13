@@ -7,7 +7,89 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <errno.h>
+#include <stdio.h>
+
+#define SHM_SIZE 1024
+
+void print_error(const char *msg) {
+    write(2, msg, strlen(msg));
+}
+
+void write_to_file(const char *filename, const char *data) {
+    int file = open(filename, O_WRONLY | O_APPEND | O_CREAT, 0666);
+    if (file != -1) {
+        write(file, data, strlen(data));
+        close(file);
+    } else {
+        print_error("Ошибка при открытии файла\n");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        print_error("Использование: <имя_файла>\n");
+        exit(EXIT_FAILURE);
+    }
+
+    char *filename = argv[1];
+    int shmid;
+    char *shm_ptr;
+    key_t key = ftok("/tmp", 'R');
+    
+    shmid = shmget(key, SHM_SIZE, IPC_CREAT | 0666);
+    if (shmid < 0) {
+        print_error("Ошибка при создании сегмента общей памяти\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    pid_t pid = fork();
+    if (pid < 0) {
+        print_error("Ошибка при вызове fork\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+        execl("./child", "./child", filename, NULL);
+        print_error("Ошибка при запуске дочернего процесса\n");
+        exit(EXIT_FAILURE);
+    } else {
+        shm_ptr = shmat(shmid, NULL, 0);
+        if (shm_ptr == (char *)(-1)) {
+            print_error("Ошибка при подключении к сегменту общей памяти\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        char input[SHM_SIZE];
+        while (1) {
+            const char *prompt = "Введите числа (или 'exit' для выхода): ";
+            write(1, prompt, strlen(prompt));
+            read(0, input, SHM_SIZE);
+            input[strcspn(input, "\n")] = 0;
+
+            strncpy(shm_ptr, input, SHM_SIZE);
+            if (strcmp(input, "exit") == 0) {
+                break;
+            }
+            sleep(1);
+        }
+        
+        shmdt(shm_ptr);
+        shmctl(shmid, IPC_RMID, NULL);
+        wait(NULL);
+        exit(EXIT_SUCCESS);
+    }
+}
+
+
+/* #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define SHM_SIZE 1024 // размер общей памяти
 
@@ -161,4 +243,4 @@ int main(int argc, char *argv[]) {
         wait(NULL); // Ожидаем завершения дочернего процесса
         exit(EXIT_SUCCESS);
     }
-}
+} */
